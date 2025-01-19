@@ -65,13 +65,10 @@ function M.toggle()
 end
 
 function M.insert_parent_dir(files)
-  if #files == 0 then
-    table.insert(files, 1, '../')
-  else
-    -- 先頭の2行を削除
+  if #files ~= 0 then
     table.remove(files, 1)
-    table.insert(files, 1, '../')
   end
+  table.insert(files, 1, '../')
   return files
 end
 
