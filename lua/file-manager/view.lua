@@ -1,6 +1,7 @@
 local M = {}
 local FILE_TYPE = 'file-manager'
 Current_dir = nil
+Win = nil
 
 
 -- ファイルマネージャを開く
@@ -26,34 +27,33 @@ function M.open()
     height = height,
     row = row,
     col = col,
-    border = 'single',
+    border = { '─', '─', ' ', ' ', ' ', ' ', ' ', ' ' }, -- Top border only
+    title = Current_dir,
   }
   -- set background color
   vim.api.nvim_win_set_option(0, 'winhl', 'Normal:Normal,FloatBorder:MyBorder')
 
-  vim.api.nvim_open_win(buf, true, opts)
+  Win = vim.api.nvim_open_win(buf, true, opts)
 end
 
 -- ファイルマネージャを閉じる
 function M.close()
-  local bufs = vim.api.nvim_list_bufs()
-  for _, buf in ipairs(bufs) do
-    if vim.bo[buf].filetype == FILE_TYPE then
-      vim.api.nvim_buf_delete(buf, { force = true })
-    end
+  if Win then
+    vim.api.nvim_win_close(Win, true)
+    Win = nil
+  end
+end
+
+function M.change_title()
+  if Win then
+    vim.api.nvim_win_set_config(Win, { title = Current_dir })
   end
 end
 
 -- ファイルマネージャが開かれているかどうか
 -- @return boolean
 function M.is_open()
-  local bufs = vim.api.nvim_list_bufs()
-  for _, buf in ipairs(bufs) do
-    if vim.bo[buf].filetype == FILE_TYPE then
-      return true
-    end
-  end
-  return false
+  return Win ~= nil
 end
 
 function M.toggle()
@@ -87,6 +87,7 @@ function M.open_dir_action(path, is_parent_dir)
     vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, M.ls(path))
     Current_dir = path
   end
+  M.change_title()
 end
 
 function M.open_file_action(path)
