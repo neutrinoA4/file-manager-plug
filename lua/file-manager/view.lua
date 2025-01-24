@@ -1,19 +1,21 @@
 local M = {}
 local FILE_TYPE = 'file-manager'
+local command = require("file-manager/command")
 Current_dir = nil
 Win = nil
-
 
 -- ファイルマネージャを開く
 function M.open()
   local file_dir = vim.fn.expand('%:p:h')
   Current_dir = file_dir
-  local files = M.ls(file_dir)
+  local files = command.ls(file_dir)
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
+  -- vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
+  vim.api.nvim_buf_set_option(buf, 'buftype', 'acwrite')
   vim.api.nvim_buf_set_option(buf, 'filetype', FILE_TYPE)
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, files)
+  vim.api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
 
   local width = vim.o.columns
   local height = math.ceil((vim.o.lines) / 2 - 2)
@@ -34,14 +36,16 @@ function M.open()
   vim.api.nvim_win_set_option(0, 'winhl', 'Normal:Normal,FloatBorder:MyBorder')
 
   Win = vim.api.nvim_open_win(buf, true, opts)
+  -- Enable cursor line highlighting
+  vim.api.nvim_win_set_option(Win, 'cursorline', true)
 end
 
 -- ファイルマネージャを閉じる
 function M.close()
   if Win then
     vim.api.nvim_win_close(Win, true)
-    Win = nil
   end
+  Win = nil
 end
 
 function M.change_title()
@@ -53,7 +57,12 @@ end
 -- ファイルマネージャが開かれているかどうか
 -- @return boolean
 function M.is_open()
-  return Win ~= nil
+  if Win then
+    if vim.api.nvim_win_is_valid(Win) then
+      return Win ~= nil
+    end
+  end
+  return false
 end
 
 function M.toggle()
@@ -64,27 +73,14 @@ function M.toggle()
   end
 end
 
-function M.insert_parent_dir(files)
-  if #files ~= 0 then
-    table.remove(files, 1)
-  end
-  table.insert(files, 1, '../')
-  return files
-end
-
-function M.ls(dir)
-  local files = vim.fn.systemlist('ls -l ' .. dir)
-  return M.insert_parent_dir(files)
-end
-
 function M.open_dir_action(path, is_parent_dir)
   local current_buf = vim.api.nvim_get_current_buf()
   if is_parent_dir then
     local parent_dir = vim.fn.fnamemodify(Current_dir, ':h')
-    vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, M.ls(parent_dir))
+    vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, command.ls(parent_dir))
     Current_dir = parent_dir
   else
-    vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, M.ls(path))
+    vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, command.ls(path))
     Current_dir = path
   end
   M.change_title()
