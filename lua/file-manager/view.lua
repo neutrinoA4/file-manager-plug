@@ -1,8 +1,10 @@
 local M = {}
 local FILE_TYPE = 'file-manager'
+local FILE_TYPE_CHECK = 'file-manager-check'
 local command = require("file-manager/command")
 Current_dir = nil
 Win = nil
+Lines = nil
 
 function M.rename_action(current_files, lines)
   for i = 1, math.min(#current_files, #lines) do
@@ -45,21 +47,37 @@ function M.create_action(current_files, lines)
   end
 end
 
-function M.on_save()
+function M.cancel_action()
   local current_buf = vim.api.nvim_get_current_buf()
-  local lines = vim.api.nvim_buf_get_lines(current_buf, 0, -1, false)
+  vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, Lines)
+  vim.api.nvim_buf_set_option(current_buf, 'filetype', FILE_TYPE)
+end
+function M.do_action()
+  if Lines == nil then
+    return
+  end
+  local current_buf = vim.api.nvim_get_current_buf()
   local current_files = command.ls(Current_dir)
-  if #current_files > #lines then
-    M.delete_action(current_files, lines)
+  if #current_files > #Lines then
+    M.delete_action(current_files, Lines)
   end
-  if #current_files < #lines then
-    M.create_action(current_files, lines)
+  if #current_files < #Lines then
+    M.create_action(current_files, Lines)
   end
-  if #current_files == #lines then
-    M.rename_action(current_files, lines)
+  if #current_files == #Lines then
+    M.rename_action(current_files, Lines)
   end
   local files = command.ls(Current_dir)
   vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, files)
+  vim.api.nvim_buf_set_option(current_buf, 'filetype', FILE_TYPE)
+end
+
+function M.on_save()
+  local current_buf = vim.api.nvim_get_current_buf()
+  Lines = vim.api.nvim_buf_get_lines(current_buf, 0, -1, false)
+  local msg = 'Do you want to do this action? [y/n]'
+  vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, { msg })
+  vim.api.nvim_buf_set_option(current_buf, 'filetype', FILE_TYPE_CHECK)
 end
 
 vim.api.nvim_create_autocmd("BufWriteCmd", {
@@ -198,6 +216,15 @@ vim.api.nvim_create_autocmd('FileType', {
       ':lua require("file-manager").open_dir_action(vim.fn.fnamemodify(Current_dir, ":h"), true)<CR>',
       { noremap = true, silent = true })
     vim.api.nvim_buf_set_keymap(0, 'n', '<C-j>', ':lua require("file-manager").open_file()<CR>',
+      { noremap = true, silent = true })
+  end
+})
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'file-manager-check',
+  callback = function()
+    vim.api.nvim_buf_set_keymap(0, 'n', 'n', ':lua require("file-manager").cancel_action()<CR>',
+      { noremap = true, silent = true })
+    vim.api.nvim_buf_set_keymap(0, 'n', 'y', ':lua require("file-manager").do_action()<CR>',
       { noremap = true, silent = true })
   end
 })
