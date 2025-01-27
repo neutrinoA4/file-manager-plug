@@ -21,4 +21,8 @@ function M.delete(name)
   vim.fn.system('rm -rf ' .. name)
 end
 
+function M.create(name)
+  vim.fn.system('touch ' .. name)
+end
+
 return M

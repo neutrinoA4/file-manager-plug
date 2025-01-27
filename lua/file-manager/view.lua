@@ -4,15 +4,85 @@ local command = require("file-manager/command")
 Current_dir = nil
 Win = nil
 
+function M.rename_action(current_files, lines)
+  for i = 1, math.min(#current_files, #lines) do
+    local file = string.match(current_files[i], '%S+$')
+    local line = string.match(lines[i], '%S+$')
+    if file ~= line then
+      local path = Current_dir .. '/' .. file
+      local new_path = Current_dir .. '/' .. line
+      command.rename(path, new_path)
+    end
+  end
+end
+
+function M.delete_action(current_files, lines)
+  local delete_files = {}
+  for _, file in ipairs(current_files) do
+    if not vim.tbl_contains(lines, file) then
+      table.insert(delete_files, file)
+    end
+  end
+  for _, file in ipairs(delete_files) do
+    local path = Current_dir .. '/' .. file
+    if file == '../' then
+      return
+    end
+    command.delete(path)
+  end
+end
+
+function M.create_action(current_files, lines)
+  local create_files = {}
+  for _, line in ipairs(lines) do
+    if not vim.tbl_contains(current_files, line) then
+      table.insert(create_files, line)
+    end
+  end
+  for _, file in ipairs(create_files) do
+    local path = Current_dir .. '/' .. file
+    command.create(path)
+  end
+end
+
+function M.on_save()
+  local current_buf = vim.api.nvim_get_current_buf()
+  local lines = vim.api.nvim_buf_get_lines(current_buf, 0, -1, false)
+  local current_files = command.ls(Current_dir)
+  if #current_files > #lines then
+    M.delete_action(current_files, lines)
+  end
+  if #current_files < #lines then
+    M.create_action(current_files, lines)
+  end
+  if #current_files == #lines then
+    M.rename_action(current_files, lines)
+  end
+  local files = command.ls(Current_dir)
+  vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, files)
+end
+
+vim.api.nvim_create_autocmd("BufWriteCmd", {
+  pattern = "*",
+  callback = function()
+    if vim.api.nvim_buf_get_option(0, 'filetype') == 'file-manager' then
+      M.on_save()
+    else
+      vim.cmd('w')
+    end
+  end
+})
+
 -- ファイルマネージャを開く
 function M.open()
   local file_dir = vim.fn.expand('%:p:h')
   Current_dir = file_dir
   local files = command.ls(file_dir)
   local buf = vim.api.nvim_create_buf(false, true)
-  -- vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
   vim.api.nvim_buf_set_option(buf, 'buftype', 'acwrite')
   vim.api.nvim_buf_set_option(buf, 'filetype', FILE_TYPE)
+  -- set buf name
+  vim.api.nvim_buf_set_name(buf, 'file-manager')
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, files)
   vim.api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
@@ -75,14 +145,17 @@ end
 
 function M.open_dir_action(path, is_parent_dir)
   local current_buf = vim.api.nvim_get_current_buf()
+  local files = nil
   if is_parent_dir then
     local parent_dir = vim.fn.fnamemodify(Current_dir, ':h')
-    vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, command.ls(parent_dir))
+    files = command.ls(parent_dir)
     Current_dir = parent_dir
   else
-    vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, command.ls(path))
+    files = command.ls(path)
+    vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, files)
     Current_dir = path
   end
+  vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, files)
   M.change_title()
 end
 
